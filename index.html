@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>mapcover</title>
+
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css"
+      integrity="sha512-xwE/Az9zrjBIphAcBb3F6JVqxf46+CDLwfLMHloNu6KEQCAWi6HcDUbeOfBIptF7tcCzusKFjFw2yuvEpDL9wQ=="
+      crossorigin=""
+    />
+    <script
+      src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"
+      integrity="sha512-gZwIG9x3wUXg2hdXF6+rVkLF/0Vi9U8D2Ntg4Ga5I5BZpVkVxlJWbSQtXPSiUTtC0TjtGOmxa1AJPuV0CPthew=="
+      crossorigin=""
+    ></script>
+    <script src="./coords.js"></script>
+  </head>
+  <body>
+    <div
+      id="mapid"
+      style="position: absolute; left: 0; right: 0; top: 0; bottom: 0;"
+    ></div>
+    <script>
+      const mymap = L.map("mapid").setView([40, -94], 4);
+
+      L.tileLayer(
+        "https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token=pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw",
+        {
+          maxZoom: 18,
+          attribution:
+            'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, ' +
+            '<a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, ' +
+            'Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+          id: "mapbox/streets-v11",
+          tileSize: 512,
+          zoomOffset: -1,
+        }
+      ).addTo(mymap);
+
+      function radToDeg(radians) {
+        return (radians * 180) / Math.PI;
+      }
+      function degToRad(degrees) {
+        return (degrees * Math.PI) / 180;
+      }
+
+      const earthRadiusMeters = 6371008.8;
+      const searchRadiusMeters = 100000;
+      const angularRadius =
+        Math.min(searchRadiusMeters / earthRadiusMeters, Math.PI) *
+        Math.sqrt(2);
+      const deltaLat = radToDeg(angularRadius);
+      const markers = new Set();
+      const enabledColor = "#f00";
+      const enabledFillColor = "#f03";
+      const disabledColor = "#888";
+      const disabledFillColor = "#aaa";
+      const enabledOpacity = 0.2;
+      const disabledOpacity = 0.05;
+      for (let lat = 25; lat < 50; lat += deltaLat) {
+        const deltaLng = Math.abs(
+          radToDeg(Math.asin(Math.sin(angularRadius) / Math.cos(degToRad(lat))))
+        );
+        for (let lng = -125; lng < -65; lng += deltaLng) {
+          const enabled = enabledCoords.some(
+            ([y, x]) =>
+              mymap.distance(L.latLng(y, x), L.latLng(lat, lng)) <
+              searchRadiusMeters
+          );
+          const c = L.circle([lat, lng], {
+            color: enabled ? enabledColor : disabledColor,
+            opacity: enabledOpacity,
+            weight: 1,
+            fillColor: enabled ? enabledFillColor : disabledFillColor,
+            fillOpacity: enabled ? enabledOpacity : disabledOpacity,
+            radius: searchRadiusMeters,
+            enabled,
+            bubblingMouseEvents: false,
+          });
+          c.addTo(mymap);
+          markers.add(c);
+          c.on("click", (e) => {
+            const { enabled } = e.target.options;
+            e.target.options.enabled = !enabled;
+            e.target.setStyle({
+              color: enabled ? disabledColor : enabledColor,
+              fillColor: enabled ? disabledFillColor : enabledFillColor,
+              fillOpacity: enabled ? disabledOpacity : enabledOpacity,
+            });
+          });
+        }
+      }
+
+      mymap.on("click", (e) => {
+        const enabled = Array.from(markers).filter((c) => c.options.enabled);
+        const lls = enabled
+          .map((c) => {
+            const ll = c.getLatLng();
+            return `[${ll.lat.toFixed(6)},${ll.lng.toFixed(6)}]`;
+          })
+          .join(",");
+        console.log(`[${lls}]`);
+        console.log(`${enabled.length} circles enabled`);
+      });
+    </script>
+  </body>
+</html>
